@@ -197,26 +197,46 @@
     Images.prototype.add = function () {
         var that = this,
             $file = $(this.templates['src/js/templates/images-fileupload.hbs']()),
+            $place = this.$el.find('.medium-insert-active'),
             fileUploadOptions = {
                 dataType: 'json',
                 add: function (e, data) {
+                    // Replace paragraph with div, because figure elements can't be inside paragraph
+                    if ($place.is('p')) {
+                        $place.replaceWith('<div class="medium-insert-active">' + $place.html() + '</div>');
+                        $place = that.$el.find('.medium-insert-active');
+                        if ($place.next().is('p')) {
+                            that.core.moveCaret($place.next());
+                        } else {
+                            $place.after('<p><br></p>'); // add empty paragraph so we can move the caret to the next line.
+                            that.core.moveCaret($place.next());
+                        }
+                        $place.addClass('medium-insert-images');
+                    }
+                    data.place = $place;
                     $.proxy(that, 'uploadAdd', e, data)();
                 },
                 done: function (e, data) {
+                    data.place = $place;
                     $.proxy(that, 'uploadDone', e, data)();
+                },
+                fail: function(e, data) {
+                    alert('image upload failed');
                 }
             };
-
+        
         // Only add progress callbacks for browsers that support XHR2,
         // and test for XHR2 per:
         // http://stackoverflow.com/questions/6767887/
         // what-is-the-best-way-to-check-for-xhr2-file-upload-support
         if (new XMLHttpRequest().upload) {
             fileUploadOptions.progress = function (e, data) {
+                data.place = $place;
                 $.proxy(that, 'uploadProgress', e, data)();
             };
 
             fileUploadOptions.progressall = function (e, data) {
+                data.place = $place;
                 $.proxy(that, 'uploadProgressall', e, data)();
             };
         }
@@ -236,13 +256,13 @@
      */
 
     Images.prototype.uploadAdd = function (e, data) {
-        var $place = this.$el.find('.medium-insert-active'),
-            that = this,
-            uploadErrors = [],
-            file = data.files[0],
-            acceptFileTypes = this.options.fileUploadOptions.acceptFileTypes,
-            maxFileSize = this.options.fileUploadOptions.maxFileSize,
-            previewImg;
+        var $place = data.place,
+        that = this,
+        uploadErrors = [],
+        file = data.files[0],
+        acceptFileTypes = this.options.fileUploadOptions.acceptFileTypes,
+        maxFileSize = this.options.fileUploadOptions.maxFileSize,
+        previewImg;
 
         if (acceptFileTypes && !acceptFileTypes.test(file.type)) {
             uploadErrors.push(this.options.messages.acceptFileTypesError + file.name);
@@ -262,20 +282,6 @@
         }
 
         this.core.hideButtons();
-
-        // Replace paragraph with div, because figure elements can't be inside paragraph
-        if ($place.is('p')) {
-            $place.replaceWith('<div class="medium-insert-active">' + $place.html() + '</div>');
-            $place = this.$el.find('.medium-insert-active');
-            if ($place.next().is('p')) {
-                this.core.moveCaret($place.next());
-            } else {
-                $place.after('<p><br></p>'); // add empty paragraph so we can move the caret to the next line.
-                this.core.moveCaret($place.next());
-            }
-        }
-
-        $place.addClass('medium-insert-images');
 
         if (this.options.preview === false && $place.find('progress').length === 0 && (new XMLHttpRequest().upload)) {
             $place.append(this.templates['src/js/templates/images-progressbar.hbs']());
@@ -315,7 +321,7 @@
 
         if (this.options.preview === false) {
             progress = parseInt(data.loaded / data.total * 100, 10);
-            $progressbar = this.$el.find('.medium-insert-active').find('progress');
+            $progressbar = data.place.find('progress');
 
             $progressbar
                 .attr('value', progress)
@@ -375,13 +381,13 @@
      */
 
     Images.prototype.showImage = function (img, data) {
-        var $place = this.$el.find('.medium-insert-active'),
-            domImage,
-            that;
+        var $place = data.place,
+        domImage,
+        that;
 
         // Hide editor's placeholder
         $place.click();
-
+        
         // If preview is allowed and preview image already exists,
         // replace it with uploaded image
         that = this;
